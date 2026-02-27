@@ -405,7 +405,7 @@ canvas{display:none}
 <!-- ═══════════════════════════════════════════════
      PAGE 1: SETUP
 ═══════════════════════════════════════════════ -->
-<div class="page active" id="pageSetup">
+<div class="page" id="pageSetup" style="display:none">
 <div class="setup-wrap">
   <div class="setup-logo">⚾</div>
   <h1>야구 자세<br><em>AI 코치</em></h1>
@@ -493,10 +493,10 @@ canvas{display:none}
 <!-- ═══════════════════════════════════════════════
      PAGE 2: MAIN APP
 ═══════════════════════════════════════════════ -->
-<div class="page" id="pageApp">
+<div class="page active" id="pageApp">
 
   <div class="appbar">
-    <button class="btn-back" onclick="goSetup()">←</button>
+    
     <div class="appbar-title">⚾ <span>야구 AI 코치</span></div>
   </div>
 
@@ -613,50 +613,17 @@ canvas{display:none}
 
 <script>
 /* ═══════════════════════════════════════════
-   CONFIG
+   CONFIG — 선생님이 여기만 수정하세요!
 ═══════════════════════════════════════════ */
-let SCRIPT_URL = localStorage.getItem('bb_script_url') || '';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwPpO7jW57eK4LnGJcUq_AdqtXcxG-iGLy3s6vgHTiSoACj9_Y6ka1a0o55T9BGj3P8/exec';
+// ↑ Apps Script 배포 URL을 따옴표 안에 붙여넣으세요
+// 예: 'https://script.google.com/macros/s/AKfy.../exec'
 
-/* ═══════════════════════════════════════════
-   SETUP PAGE
-═══════════════════════════════════════════ */
-(function initSetup(){
-  if (SCRIPT_URL) {
-    document.getElementById('urlInput').value = SCRIPT_URL;
-    setUrlOk();
-  }
-})();
+function goApp(){ /* 사용 안 함 */ }
 
-function saveUrl(){
-  const v = document.getElementById('urlInput').value.trim();
-  if (!v.startsWith('https://script.google.com/macros/s/')) {
-    document.getElementById('urlStatus').textContent = '⚠️ Apps Script URL이 아닌 것 같아요 (https://script.google.com/macros/s/ 로 시작해야 해요)';
-    document.getElementById('urlStatus').className = 'url-status err';
-    document.getElementById('btnGoApp').disabled = true;
-    return;
-  }
-  SCRIPT_URL = v;
-  localStorage.setItem('bb_script_url', v);
-  setUrlOk();
-}
-
-function setUrlOk(){
-  document.getElementById('urlStatus').textContent = '✅ URL 저장 완료! 시작하기 버튼을 눌러주세요.';
-  document.getElementById('urlStatus').className = 'url-status ok';
-  document.getElementById('btnGoApp').disabled = false;
-}
-
-function goApp(){
-  document.getElementById('pageSetup').classList.remove('active');
-  document.getElementById('pageApp').classList.add('active');
-  startCam();
-}
-
-function goSetup(){
-  document.getElementById('pageApp').classList.remove('active');
-  document.getElementById('pageSetup').classList.add('active');
-  stopCam();
-}
+// 페이지 열리면 바로 카메라 시작
+window.addEventListener("DOMContentLoaded", () => { startCam(); });
+function goSetup(){ /* 사용 안 함 */ }
 
 /* ═══════════════════════════════════════════
    CAMERA
@@ -917,18 +884,29 @@ async function analyze(){
   },1800);
 
   try {
+    if (!SCRIPT_URL || SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+      throw new Error('선생님이 아직 서버 URL을 설정하지 않았어요. 선생님께 문의해주세요!');
+    }
+
     const base64 = frames[frameIdx].split(',')[1];
+
+    // Apps Script는 redirect를 하므로 no-redirect로 받아서 JSON 파싱
     const res = await fetch(SCRIPT_URL, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({imageBase64:base64, mimeType:'image/jpeg', mode})
+      method: 'POST',
+      // Content-Type을 text/plain으로 하면 preflight(OPTIONS) 없이 전송됨 → CORS 우회
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', mode }),
+      redirect: 'follow'
     });
 
     clearInterval(loadInt);
     document.getElementById('loading').classList.remove('show');
 
-    if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e) { throw new Error('서버 응답을 읽을 수 없어요. Apps Script URL을 확인해주세요.'); }
+
     if (data.error) throw new Error(data.error);
     showResult(data.result);
 
@@ -937,7 +915,8 @@ async function analyze(){
     document.getElementById('loading').classList.remove('show');
     document.getElementById('btnAnalyze').disabled = false;
     const eb = document.getElementById('errBox');
-    eb.innerHTML = `⚠️ ${err.message || '분석 중 오류가 발생했어요.'}<br><small style="opacity:.65;font-size:11px">Apps Script URL을 다시 확인해보세요 (← 뒤로 버튼 → 설정)</small>`;
+    const msg = err.message || '분석 중 오류가 발생했어요.';
+    eb.innerHTML = '⚠️ ' + msg;
     eb.classList.add('show');
   }
 }
