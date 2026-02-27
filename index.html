@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a1520">
+<!-- HTTPS에서만 카메라 작동 → GitHub Pages는 자동 HTTPS -->
+<title>⚾ 야구 AI 코치</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Gothic:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & BASE ─────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a1520;
+  --s1:#111f30;
+  --s2:#192840;
+  --s3:#1e3050;
+  --acc:#f5a623;
+  --acc2:#e8920d;
+  --blue:#4a9eff;
+  --green:#2ecc71;
+  --red:#e74c3c;
+  --text:#eaf2ff;
+  --sub:#7a9cc0;
+  --r:16px;
+}
+html,body{height:100%;overflow-x:hidden}
+body{
+  font-family:'Nanum Gothic',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 0%,rgba(245,166,35,.09) 0%,transparent 70%),
+    radial-gradient(ellipse 50% 50% at 85% 100%,rgba(74,158,255,.07) 0%,transparent 70%);
+}
+
+/* ── LAYOUT ───────────────────────────────────────── */
+.page{display:none;flex-direction:column;min-height:100vh}
+.page.active{display:flex}
+.wrap{max-width:600px;margin:0 auto;padding:0 16px;width:100%;position:relative;z-index:1}
+
+/* ── SETUP PAGE ───────────────────────────────────── */
+#pageSetup{
+  background:var(--bg);
+  align-items:center;justify-content:center;
+  padding:40px 0;
+}
+.setup-wrap{
+  max-width:480px;width:100%;padding:0 20px;text-align:center;
+}
+.setup-logo{font-size:64px;margin-bottom:16px;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.setup-wrap h1{
+  font-family:'Jua',sans-serif;font-size:32px;line-height:1.2;margin-bottom:8px;
+}
+.setup-wrap h1 em{color:var(--acc);font-style:normal}
+.setup-wrap .sub{color:var(--sub);font-size:14px;line-height:1.6;margin-bottom:32px}
+
+.setup-card{
+  background:var(--s2);border:1px solid rgba(255,255,255,.07);
+  border-radius:20px;padding:24px;text-align:left;margin-bottom:16px;
+}
+.setup-card h3{
+  font-size:13px;font-weight:800;letter-spacing:1.5px;
+  color:var(--acc);margin-bottom:14px;text-transform:uppercase;
+  display:flex;align-items:center;gap:8px;
+}
+.setup-step{display:flex;gap:12px;margin-bottom:12px;align-items:flex-start}
+.setup-step:last-child{margin-bottom:0}
+.snum{
+  width:24px;height:24px;border-radius:50%;
+  background:rgba(245,166,35,.2);border:1px solid rgba(245,166,35,.4);
+  color:var(--acc);font-size:11px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;
+}
+.setup-step p{font-size:13px;color:var(--sub);line-height:1.5}
+.setup-step p strong{color:var(--text)}
+.setup-step p a{color:var(--acc);text-decoration:none}
+
+.url-row{display:flex;gap:8px;margin-top:4px}
+.url-input{
+  flex:1;background:rgba(0,0,0,.3);border:1.5px solid rgba(255,255,255,.1);
+  border-radius:10px;padding:10px 14px;
+  color:var(--text);font-size:12px;font-family:monospace;
+  outline:none;transition:border-color .2s;
+}
+.url-input:focus{border-color:var(--acc)}
+.url-input::placeholder{color:var(--sub)}
+.btn-set{
+  background:var(--acc);color:#0a1520;border:none;border-radius:10px;
+  padding:10px 16px;font-family:'Nanum Gothic',sans-serif;font-weight:800;
+  font-size:13px;cursor:pointer;white-space:nowrap;transition:all .15s;
+}
+.btn-set:active{transform:scale(.96)}
+
+.url-status{font-size:12px;margin-top:8px;color:var(--sub)}
+.url-status.ok{color:var(--green)}
+.url-status.err{color:var(--red)}
+
+.btn-start-big{
+  width:100%;padding:18px;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  color:#0a1520;border:none;border-radius:16px;
+  font-family:'Jua',sans-serif;font-size:22px;
+  cursor:pointer;transition:all .2s;
+  box-shadow:0 6px 28px rgba(245,166,35,.35);
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.btn-start-big:hover{transform:translateY(-2px);box-shadow:0 10px 36px rgba(245,166,35,.45)}
+.btn-start-big:active{transform:scale(.97)}
+.btn-start-big:disabled{
+  background:var(--s2);color:var(--sub);box-shadow:none;transform:none;cursor:not-allowed;
+}
+
+/* ── MAIN APP PAGE ────────────────────────────────── */
+#pageApp{flex-direction:column}
+
+.appbar{
+  background:rgba(10,21,32,.95);backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  padding:12px 16px;
+  display:flex;align-items:center;gap:12px;
+  position:sticky;top:0;z-index:100;
+}
+.btn-back{
+  background:rgba(255,255,255,.07);border:none;color:var(--sub);
+  width:36px;height:36px;border-radius:10px;font-size:16px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+}
+.btn-back:hover{color:var(--text);background:rgba(255,255,255,.12)}
+.appbar-title{
+  font-family:'Jua',sans-serif;font-size:18px;flex:1;
+}
+.appbar-title span{color:var(--acc)}
+
+.app-content{flex:1;padding:16px 0 40px}
+
+/* MODE TABS */
+.mode-row{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;
+}
+.mode-btn{
+  padding:13px 8px;
+  background:var(--s2);border:2px solid rgba(255,255,255,.06);
+  border-radius:14px;color:var(--sub);
+  font-family:'Nanum Gothic',sans-serif;font-size:15px;font-weight:800;
+  cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.mode-btn.active{
+  background:rgba(245,166,35,.12);border-color:var(--acc);
+  color:var(--acc);box-shadow:0 0 20px rgba(245,166,35,.12);
+}
+
+/* VIDEO CARD */
+.video-card{
+  background:var(--s1);border:1px solid rgba(255,255,255,.07);
+  border-radius:20px;overflow:hidden;margin-bottom:14px;
+}
+
+.viewfinder{
+  position:relative;background:#000;
+  /* 세로 영상 비율 (핸드폰 최적화) */
+  aspect-ratio:9/16;max-height:75vw;overflow:hidden;
+}
+@media(min-width:500px){
+  .viewfinder{aspect-ratio:3/4;max-height:none}
+}
+
+#vid{width:100%;height:100%;object-fit:cover;display:block}
+#vid.mirror{transform:scaleX(-1)}
+
+/* guide overlay */
+.overlay{
+  position:absolute;inset:0;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.guide-box{
+  width:50%;height:82%;
+  border:2px dashed rgba(245,166,35,.4);
+  border-radius:14px;position:relative;
+}
+.guide-box::after{
+  content:attr(data-hint);
+  position:absolute;bottom:-32px;left:50%;transform:translateX(-50%);
+  background:rgba(245,166,35,.18);color:var(--acc);
+  font-size:11px;font-weight:800;letter-spacing:.5px;
+  padding:4px 12px;border-radius:20px;white-space:nowrap;
+}
+
+/* corners */
+.corner{
+  position:absolute;width:16px;height:16px;
+  border-color:var(--acc);border-style:solid;
+  opacity:.7;
+}
+.corner.tl{top:0;left:0;border-width:2px 0 0 2px;border-radius:3px 0 0 0}
+.corner.tr{top:0;right:0;border-width:2px 2px 0 0;border-radius:0 3px 0 0}
+.corner.bl{bottom:0;left:0;border-width:0 0 2px 2px;border-radius:0 0 0 3px}
+.corner.br{bottom:0;right:0;border-width:0 2px 2px 0;border-radius:0 0 3px 0}
+
+/* rec badge */
+.rec-badge{
+  position:absolute;top:10px;left:12px;
+  display:none;align-items:center;gap:6px;
+  background:rgba(231,76,60,.85);
+  border-radius:20px;padding:4px 10px;
+  font-size:11px;font-weight:800;letter-spacing:1px;
+  backdrop-filter:blur(4px);
+}
+.rec-badge.show{display:flex}
+.rec-dot-anim{width:7px;height:7px;border-radius:50%;background:#fff;animation:blink .7s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.rec-timer-badge{
+  position:absolute;top:10px;right:12px;
+  background:rgba(0,0,0,.6);border-radius:20px;padding:4px 10px;
+  font-size:13px;font-weight:800;font-family:monospace;
+  display:none;backdrop-filter:blur(4px);
+}
+.rec-timer-badge.show{display:block}
+
+/* cam loader */
+.cam-init{
+  position:absolute;inset:0;
+  background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  font-size:13px;color:var(--sub);
+}
+.spin{
+  width:40px;height:40px;border-radius:50%;
+  border:3px solid rgba(255,255,255,.08);border-top-color:var(--acc);
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* captured preview */
+.captured-view{display:none;position:relative;background:#000}
+.captured-view img{width:100%;max-height:420px;object-fit:contain;display:block}
+.retake-fab{
+  position:absolute;top:10px;left:10px;
+  background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.15);
+  color:var(--text);border-radius:20px;padding:6px 14px;
+  font-family:'Nanum Gothic',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;backdrop-filter:blur(6px);
+}
+
+.frame-strip{
+  display:flex;align-items:center;padding:10px 14px;gap:10px;
+  background:var(--s1);border-top:1px solid rgba(255,255,255,.06);
+  overflow-x:auto;
+}
+.frame-strip::-webkit-scrollbar{height:3px}
+.frame-strip::-webkit-scrollbar-thumb{background:var(--acc);border-radius:2px}
+.frame-thumb{
+  width:44px;height:60px;object-fit:cover;border-radius:6px;
+  border:2px solid transparent;cursor:pointer;flex-shrink:0;
+  transition:all .15s;opacity:.6;
+}
+.frame-thumb.active{border-color:var(--acc);opacity:1;transform:scale(1.05)}
+.frame-label{font-size:11px;color:var(--sub);white-space:nowrap;flex-shrink:0}
+
+/* cam controls */
+.cam-controls{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;
+  background:var(--s1);border-top:1px solid rgba(255,255,255,.06);
+}
+.btn-flip{
+  width:44px;height:44px;border-radius:12px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+  color:var(--sub);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+}
+.btn-flip:hover{color:var(--text);background:rgba(255,255,255,.12)}
+.btn-rec{
+  flex:1;padding:13px;border:none;border-radius:14px;
+  font-family:'Jua',sans-serif;font-size:18px;cursor:pointer;
+  transition:all .2s;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  color:#0a1520;box-shadow:0 4px 20px rgba(245,166,35,.3);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-rec.recording{
+  background:linear-gradient(135deg,#e74c3c,#c0392b);
+  color:#fff;box-shadow:0 4px 20px rgba(231,76,60,.4);
+  animation:recpulse .9s ease-in-out infinite;
+}
+@keyframes recpulse{0%,100%{box-shadow:0 4px 20px rgba(231,76,60,.4)}50%{box-shadow:0 4px 32px rgba(231,76,60,.7)}}
+.btn-rec:disabled{background:var(--s3);color:var(--sub);box-shadow:none;cursor:not-allowed}
+
+/* ANALYZE BTN */
+.btn-analyze{
+  width:100%;padding:16px;border:none;border-radius:16px;
+  font-family:'Jua',sans-serif;font-size:20px;cursor:pointer;
+  background:linear-gradient(135deg,#4a9eff,#1a6fd8);
+  color:#fff;box-shadow:0 4px 24px rgba(74,158,255,.3);
+  margin-bottom:18px;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.btn-analyze:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(74,158,255,.4)}
+.btn-analyze:disabled{background:var(--s2);color:var(--sub);box-shadow:none;transform:none;cursor:not-allowed}
+
+/* LOADING */
+.loading{display:none;text-align:center;padding:44px 20px}
+.loading.show{display:block}
+.loading .spin{margin:0 auto 16px;width:52px;height:52px;border-width:3px}
+.loading p{color:var(--sub);font-size:14px;animation:fade 2s ease-in-out infinite}
+@keyframes fade{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* ERROR */
+.err-box{
+  display:none;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);
+  border-radius:14px;padding:14px 16px;color:#f1948a;
+  font-size:13px;margin-bottom:16px;line-height:1.6;
+}
+.err-box.show{display:block}
+
+/* RESULT */
+.result{display:none;animation:slideup .4s ease}
+.result.show{display:block}
+@keyframes slideup{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+
+/* score hero */
+.score-hero{
+  background:linear-gradient(135deg,var(--s2),var(--s3));
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:20px;padding:22px 20px;
+  display:flex;align-items:center;gap:18px;margin-bottom:14px;
+}
+.score-circle{
+  position:relative;width:82px;height:82px;flex-shrink:0;
+}
+.score-circle svg{transform:rotate(-90deg)}
+.score-circle .track{fill:none;stroke:rgba(255,255,255,.07);stroke-width:6}
+.score-circle .fill{
+  fill:none;stroke:var(--acc);stroke-width:6;
+  stroke-linecap:round;
+  stroke-dasharray:220;stroke-dashoffset:220;
+  transition:stroke-dashoffset 1s ease;
+}
+.score-circle .num{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+}
+.score-circle .num b{font-family:'Jua',sans-serif;font-size:26px;color:var(--acc);line-height:1}
+.score-circle .num span{font-size:10px;color:var(--sub)}
+.score-hero .txt h2{font-size:17px;font-weight:800;line-height:1.4;margin-bottom:4px}
+.score-hero .txt p{font-size:12px;color:var(--sub)}
+
+/* panels */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:400px){.two-col{grid-template-columns:1fr}}
+
+.rpanel{
+  background:var(--s2);border:1px solid rgba(255,255,255,.07);
+  border-radius:16px;padding:16px;
+}
+.rp-title{
+  font-size:11px;font-weight:800;letter-spacing:1.5px;
+  text-transform:uppercase;margin-bottom:12px;
+  display:flex;align-items:center;gap:6px;
+}
+.rp-title.g{color:var(--green)}.rp-title.r{color:#e67e22}
+.rp-item{
+  display:flex;gap:8px;font-size:13px;line-height:1.5;
+  padding-bottom:9px;margin-bottom:9px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.rp-item:last-child{padding-bottom:0;margin-bottom:0;border-bottom:none}
+.rp-ico{flex-shrink:0;margin-top:1px;font-size:13px}
+
+.tip-card{
+  background:linear-gradient(135deg,rgba(46,204,113,.1),rgba(46,204,113,.04));
+  border:1px solid rgba(46,204,113,.25);
+  border-radius:16px;padding:18px;margin-bottom:20px;
+}
+.tip-title{
+  font-size:11px;font-weight:800;letter-spacing:1.5px;
+  color:var(--green);text-transform:uppercase;
+  margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.tip-card p{font-size:14px;line-height:1.7}
+
+/* again btn */
+.btn-again{
+  width:100%;padding:14px;border:2px solid rgba(245,166,35,.3);
+  border-radius:14px;background:transparent;
+  color:var(--acc);font-family:'Jua',sans-serif;font-size:17px;
+  cursor:pointer;transition:all .2s;margin-bottom:8px;
+}
+.btn-again:hover{background:rgba(245,166,35,.08);border-color:var(--acc)}
+
+canvas{display:none}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE 1: SETUP
+═══════════════════════════════════════════════ -->
+<div class="page active" id="pageSetup">
+<div class="setup-wrap">
+  <div class="setup-logo">⚾</div>
+  <h1>야구 자세<br><em>AI 코치</em></h1>
+  <p class="sub">영상을 찍으면 AI가 자세를 분석하고<br>맞춤 피드백을 드려요!</p>
+
+  <div class="setup-card">
+    <h3>🔌 선생님 설정</h3>
+    <div class="setup-step">
+      <div class="snum">1</div>
+      <p><strong>Apps Script URL 입력</strong><br>선생님이 만든 서버 주소를 아래에 붙여넣어 주세요</p>
+    </div>
+    <div class="setup-step">
+      <div class="snum">2</div>
+      <p>처음 사용한다면 아래 <strong>설정 방법 보기</strong>를 참고해주세요</p>
+    </div>
+    <div class="url-row" style="margin-top:12px">
+      <input type="url" class="url-input" id="urlInput" placeholder="https://script.google.com/macros/s/..." />
+      <button class="btn-set" onclick="saveUrl()">저장</button>
+    </div>
+    <div class="url-status" id="urlStatus">Apps Script URL을 입력해주세요</div>
+  </div>
+
+  <!-- 접을 수 있는 설정 가이드 -->
+  <details style="margin-bottom:16px">
+    <summary style="cursor:pointer;font-size:13px;color:var(--acc);font-weight:800;padding:12px 0;user-select:none">
+      📖 선생님용 설정 방법 보기 ▾
+    </summary>
+    <div class="setup-card" style="margin-top:8px">
+      <h3>🔑 1단계: Gemini API 키 발급 (무료)</h3>
+      <div class="setup-step"><div class="snum">1</div>
+        <p><a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a> 접속</p>
+      </div>
+      <div class="setup-step"><div class="snum">2</div>
+        <p>구글 계정 로그인 → <strong>Create API Key</strong></p>
+      </div>
+      <div class="setup-step"><div class="snum">3</div>
+        <p>생성된 키 복사 (무료: 하루 1,500회)</p>
+      </div>
+    </div>
+    <div class="setup-card" style="margin-top:8px">
+      <h3>⚙️ 2단계: Apps Script 서버 만들기</h3>
+      <div class="setup-step"><div class="snum">1</div>
+        <p><a href="https://script.google.com" target="_blank">script.google.com</a> → 새 프로젝트</p>
+      </div>
+      <div class="setup-step"><div class="snum">2</div>
+        <p>제공된 <strong>apps_script.gs</strong> 코드 전체 붙여넣기</p>
+      </div>
+      <div class="setup-step"><div class="snum">3</div>
+        <p><code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:11px">YOUR_GEMINI_API_KEY_HERE</code> 부분을 발급받은 키로 교체 후 저장</p>
+      </div>
+      <div class="setup-step"><div class="snum">4</div>
+        <p><strong>배포 → 새 배포 → 웹 앱</strong><br>액세스: <strong>모든 사용자</strong> → 배포 → URL 복사</p>
+      </div>
+      <div class="setup-step"><div class="snum">5</div>
+        <p>위 입력창에 URL 붙여넣기 → 저장</p>
+      </div>
+    </div>
+    <div class="setup-card" style="margin-top:8px">
+      <h3>🌐 3단계: GitHub Pages 배포 (학생 접속용)</h3>
+      <div class="setup-step"><div class="snum">1</div>
+        <p><a href="https://github.com" target="_blank">github.com</a> → 무료 계정 만들기</p>
+      </div>
+      <div class="setup-step"><div class="snum">2</div>
+        <p><strong>New repository</strong> → 이름 입력 → Public → Create</p>
+      </div>
+      <div class="setup-step"><div class="snum">3</div>
+        <p><strong>Add file → Upload files</strong> → 이 HTML 파일을 <strong>index.html</strong>로 업로드</p>
+      </div>
+      <div class="setup-step"><div class="snum">4</div>
+        <p><strong>Settings → Pages → Branch: main → Save</strong><br>2분 후 URL 생성: <code style="font-size:11px">https://아이디.github.io/저장소명</code></p>
+      </div>
+      <div class="setup-step"><div class="snum">5</div>
+        <p>구글사이트에 이 URL을 <strong>버튼 링크</strong>로 연결</p>
+      </div>
+    </div>
+  </details>
+
+  <button class="btn-start-big" id="btnGoApp" onclick="goApp()" disabled>
+    🚀 시작하기
+  </button>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     PAGE 2: MAIN APP
+═══════════════════════════════════════════════ -->
+<div class="page" id="pageApp">
+
+  <div class="appbar">
+    <button class="btn-back" onclick="goSetup()">←</button>
+    <div class="appbar-title">⚾ <span>야구 AI 코치</span></div>
+  </div>
+
+  <div class="app-content">
+  <div class="wrap">
+
+    <!-- MODE -->
+    <div class="mode-row">
+      <button class="mode-btn active" id="modeBatting" onclick="setMode('batting')">🏏 타격 자세</button>
+      <button class="mode-btn" id="modePitching" onclick="setMode('pitching')">⚾ 투구 자세</button>
+    </div>
+
+    <!-- VIDEO CARD -->
+    <div class="video-card">
+      <div class="viewfinder" id="viewfinder">
+        <!-- camera init -->
+        <div class="cam-init" id="camInit">
+          <div class="spin"></div>
+          <span>카메라 시작 중...</span>
+        </div>
+
+        <!-- live video -->
+        <video id="vid" autoplay playsinline muted class="mirror"></video>
+
+        <!-- guide overlay -->
+        <div class="overlay" id="overlay">
+          <div class="guide-box" id="guideBox" data-hint="전신이 들어오게 해주세요">
+            <div class="corner tl"></div><div class="corner tr"></div>
+            <div class="corner bl"></div><div class="corner br"></div>
+          </div>
+        </div>
+
+        <!-- rec indicators -->
+        <div class="rec-badge" id="recBadge">
+          <div class="rec-dot-anim"></div>REC
+        </div>
+        <div class="rec-timer-badge" id="recTimerBadge">0:00</div>
+      </div>
+
+      <!-- captured preview -->
+      <div class="captured-view" id="capturedView">
+        <img id="capturedImg" src="" alt="">
+        <button class="retake-fab" onclick="retake()">↩ 다시 찍기</button>
+        <div class="frame-strip" id="frameStrip"></div>
+      </div>
+
+      <canvas id="cvs"></canvas>
+
+      <!-- controls -->
+      <div class="cam-controls">
+        <button class="btn-flip" onclick="flipCam()" title="카메라 전환">🔄</button>
+        <button class="btn-rec" id="btnRec" onclick="toggleRec()" disabled>
+          <span id="recIco">⏺</span><span id="recTxt">촬영 시작 (최대 5초)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ANALYZE -->
+    <button class="btn-analyze" id="btnAnalyze" onclick="analyze()" disabled>
+      🤖 AI 자세 분석하기
+    </button>
+
+    <!-- LOADING -->
+    <div class="loading" id="loading">
+      <div class="spin"></div>
+      <p id="loadTxt">AI가 자세를 분석하고 있어요...</p>
+    </div>
+
+    <!-- ERROR -->
+    <div class="err-box" id="errBox"></div>
+
+    <!-- RESULT -->
+    <div class="result" id="result">
+      <div class="score-hero">
+        <div class="score-circle">
+          <svg viewBox="0 0 82 82" width="82" height="82">
+            <circle class="track" cx="41" cy="41" r="35"/>
+            <circle class="fill" id="scoreFill" cx="41" cy="41" r="35"/>
+          </svg>
+          <div class="num">
+            <b id="scoreNum">0</b>
+            <span>점</span>
+          </div>
+        </div>
+        <div class="txt">
+          <h2 id="rOverall"></h2>
+          <p id="rMode"></p>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="rpanel">
+          <div class="rp-title g">✅ 잘된 점</div>
+          <div id="rGood"></div>
+        </div>
+        <div class="rpanel">
+          <div class="rp-title r">💡 개선할 점</div>
+          <div id="rImprove"></div>
+        </div>
+      </div>
+
+      <div class="tip-card">
+        <div class="tip-title">⭐ 오늘의 핵심 팁</div>
+        <p id="rTip"></p>
+      </div>
+
+      <button class="btn-again" onclick="retake()">📸 다시 분석하기</button>
+    </div>
+
+  </div><!-- /wrap -->
+  </div><!-- /app-content -->
+</div><!-- /pageApp -->
+
+
+<script>
+/* ═══════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════ */
+let SCRIPT_URL = localStorage.getItem('bb_script_url') || '';
+
+/* ═══════════════════════════════════════════
+   SETUP PAGE
+═══════════════════════════════════════════ */
+(function initSetup(){
+  if (SCRIPT_URL) {
+    document.getElementById('urlInput').value = SCRIPT_URL;
+    setUrlOk();
+  }
+})();
+
+function saveUrl(){
+  const v = document.getElementById('urlInput').value.trim();
+  if (!v.startsWith('https://script.google.com/macros/s/')) {
+    document.getElementById('urlStatus').textContent = '⚠️ Apps Script URL이 아닌 것 같아요 (https://script.google.com/macros/s/ 로 시작해야 해요)';
+    document.getElementById('urlStatus').className = 'url-status err';
+    document.getElementById('btnGoApp').disabled = true;
+    return;
+  }
+  SCRIPT_URL = v;
+  localStorage.setItem('bb_script_url', v);
+  setUrlOk();
+}
+
+function setUrlOk(){
+  document.getElementById('urlStatus').textContent = '✅ URL 저장 완료! 시작하기 버튼을 눌러주세요.';
+  document.getElementById('urlStatus').className = 'url-status ok';
+  document.getElementById('btnGoApp').disabled = false;
+}
+
+function goApp(){
+  document.getElementById('pageSetup').classList.remove('active');
+  document.getElementById('pageApp').classList.add('active');
+  startCam();
+}
+
+function goSetup(){
+  document.getElementById('pageApp').classList.remove('active');
+  document.getElementById('pageSetup').classList.add('active');
+  stopCam();
+}
+
+/* ═══════════════════════════════════════════
+   CAMERA
+═══════════════════════════════════════════ */
+let stream = null;
+let facing = 'environment'; // 후면 카메라 우선 (야구 자세 촬영에 적합)
+const vid = document.getElementById('vid');
+const cvs = document.getElementById('cvs');
+const ctx2 = cvs.getContext('2d');
+
+async function startCam(){
+  document.getElementById('camInit').style.display = 'flex';
+  vid.style.display = 'none';
+  if (stream) { stream.getTracks().forEach(t=>t.stop()); stream=null; }
+
+  // 후면 우선, 실패시 전면
+  const constraints = [
+    {video:{facingMode:{exact:'environment'},width:{ideal:1080},height:{ideal:1920}},audio:false},
+    {video:{facingMode:'environment',width:{ideal:720},height:{ideal:1280}},audio:false},
+    {video:{facingMode:'user'},audio:false},
+    {video:true,audio:false}
+  ];
+
+  for (const c of constraints){
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(c);
+      break;
+    } catch(e){ continue; }
+  }
+
+  if (!stream){
+    document.getElementById('camInit').innerHTML =
+      '<span style="color:var(--red);font-size:13px;text-align:center;padding:0 24px;line-height:1.6">📵 카메라에 접근할 수 없어요.<br><br>브라우저 주소창의 🔒 자물쇠를 눌러<br>카메라 권한을 허용해주세요.<br><br><small style="color:var(--sub)">iOS: 설정 → Safari → 카메라 허용<br>Android: 설정 → 앱 → 브라우저 → 권한</small></span>';
+    return;
+  }
+
+  vid.srcObject = stream;
+  // 현재 카메라 방향 감지
+  const track = stream.getVideoTracks()[0];
+  const settings = track.getSettings();
+  facing = settings.facingMode || 'environment';
+  vid.className = facing === 'user' ? 'mirror' : '';
+
+  await vid.play();
+  document.getElementById('camInit').style.display = 'none';
+  vid.style.display = 'block';
+  document.getElementById('btnRec').disabled = false;
+}
+
+function stopCam(){
+  if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+}
+
+async function flipCam(){
+  facing = facing === 'environment' ? 'user' : 'environment';
+  // 전환 후 재시작
+  stopCam();
+  stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{exact:facing},width:{ideal:1080},height:{ideal:1920}},audio:false
+    });
+  } catch(e){
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:facing},audio:false
+      });
+    } catch(e2){
+      await startCam(); return;
+    }
+  }
+  vid.srcObject = stream;
+  vid.className = facing === 'user' ? 'mirror' : '';
+  await vid.play();
+}
+
+/* ═══════════════════════════════════════════
+   RECORDING
+═══════════════════════════════════════════ */
+let mediaRec = null;
+let chunks = [];
+let frames = [];
+let frameIdx = 0;
+let timerInt = null;
+let elapsed = 0;
+
+function toggleRec(){
+  if (mediaRec && mediaRec.state==='recording') stopRec();
+  else startRec();
+}
+
+function startRec(){
+  chunks = []; frames = []; frameIdx = 0;
+
+  let opts = {};
+  ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'].forEach(t=>{
+    if(!opts.mimeType && MediaRecorder.isTypeSupported(t)) opts={mimeType:t};
+  });
+
+  try{ mediaRec = new MediaRecorder(stream, opts); }
+  catch(e){ mediaRec = new MediaRecorder(stream); }
+
+  mediaRec.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+  mediaRec.onstop = extractFrames;
+  mediaRec.start(100);
+
+  // UI
+  const btn = document.getElementById('btnRec');
+  btn.classList.add('recording');
+  document.getElementById('recIco').textContent = '⏹';
+  document.getElementById('recTxt').textContent = '촬영 중... (탭하면 정지)';
+  document.getElementById('recBadge').classList.add('show');
+  document.getElementById('recTimerBadge').classList.add('show');
+
+  elapsed = 0;
+  timerInt = setInterval(()=>{
+    elapsed++;
+    const m=Math.floor(elapsed/60), s=elapsed%60;
+    document.getElementById('recTimerBadge').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    if(elapsed>=5) stopRec(); // 5초 자동 정지
+  },1000);
+
+  // reset result
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('errBox').classList.remove('show');
+  document.getElementById('btnAnalyze').disabled = true;
+  document.getElementById('capturedView').style.display = 'none';
+  vid.style.display = 'block';
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+function stopRec(){
+  if (!mediaRec || mediaRec.state!=='recording') return;
+  mediaRec.stop();
+  clearInterval(timerInt);
+
+  const btn = document.getElementById('btnRec');
+  btn.classList.remove('recording');
+  document.getElementById('recIco').textContent = '⏺';
+  document.getElementById('recTxt').textContent = '다시 촬영하기';
+  document.getElementById('recBadge').classList.remove('show');
+  document.getElementById('recTimerBadge').classList.remove('show');
+}
+
+async function extractFrames(){
+  const blob = new Blob(chunks, {type: chunks[0]?.type || 'video/webm'});
+  const url = URL.createObjectURL(blob);
+  const tv = document.createElement('video');
+  tv.src = url; tv.muted = true; tv.preload = 'metadata';
+
+  await new Promise(r=>{ tv.onloadedmetadata=r; tv.onerror=r; });
+  const dur = Math.min(tv.duration||3, 5);
+  const N = Math.min(8, Math.max(4, Math.floor(dur*3)));
+
+  frames = [];
+  for(let i=0;i<N;i++){
+    const t = (i/(N-1))*dur;
+    frames.push(await grabFrame(tv,t));
+  }
+  URL.revokeObjectURL(url);
+
+  // best frame = middle (likely impact moment)
+  frameIdx = Math.floor(frames.length/2);
+  showFrames();
+}
+
+function grabFrame(tv, t){
+  return new Promise(res=>{
+    tv.currentTime = t;
+    tv.onseeked = ()=>{
+      cvs.width = tv.videoWidth || 720;
+      cvs.height = tv.videoHeight || 1280;
+      if(facing==='user'){
+        ctx2.save(); ctx2.scale(-1,1); ctx2.drawImage(tv,-cvs.width,0); ctx2.restore();
+      } else {
+        ctx2.drawImage(tv,0,0);
+      }
+      res(cvs.toDataURL('image/jpeg',0.82));
+    };
+    tv.onerror = ()=>res(null);
+  });
+}
+
+function showFrames(){
+  // main preview
+  vid.style.display = 'none';
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('capturedView').style.display = 'block';
+  document.getElementById('capturedImg').src = frames[frameIdx];
+
+  // thumbnails
+  const strip = document.getElementById('frameStrip');
+  strip.innerHTML = `<span class="frame-label">프레임 선택</span>`;
+  frames.forEach((f,i)=>{
+    if(!f) return;
+    const img = document.createElement('img');
+    img.src = f; img.className = 'frame-thumb' + (i===frameIdx?' active':'');
+    img.onclick = ()=>selectFrame(i);
+    strip.appendChild(img);
+  });
+
+  document.getElementById('btnAnalyze').disabled = false;
+}
+
+function selectFrame(i){
+  frameIdx = i;
+  document.getElementById('capturedImg').src = frames[i];
+  document.querySelectorAll('.frame-thumb').forEach((t,j)=>{
+    t.classList.toggle('active', j===i);
+  });
+}
+
+function retake(){
+  frames = [];
+  document.getElementById('capturedView').style.display = 'none';
+  vid.style.display = 'block';
+  document.getElementById('overlay').style.display = 'flex';
+  document.getElementById('btnAnalyze').disabled = true;
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('errBox').classList.remove('show');
+  document.getElementById('recTxt').textContent = '촬영 시작 (최대 5초)';
+}
+
+/* ═══════════════════════════════════════════
+   MODE
+═══════════════════════════════════════════ */
+let mode = 'batting';
+function setMode(m){
+  mode = m;
+  document.getElementById('modeBatting').classList.toggle('active', m==='batting');
+  document.getElementById('modePitching').classList.toggle('active', m==='pitching');
+  document.getElementById('guideBox').dataset.hint =
+    m==='batting' ? '타격 전신 자세가 보이게 해주세요' : '투구 전신 자세가 보이게 해주세요';
+}
+
+/* ═══════════════════════════════════════════
+   ANALYZE
+═══════════════════════════════════════════ */
+const LOAD_MSGS = [
+  'AI가 자세를 분석하고 있어요...',
+  '어깨와 무릎 각도를 확인하는 중...',
+  '발 위치와 체중 이동 분석 중...',
+  '맞춤 피드백을 작성하는 중...'
+];
+let loadInt;
+
+async function analyze(){
+  if (!frames.length || !frames[frameIdx]) return;
+
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('errBox').classList.remove('show');
+  document.getElementById('loading').classList.add('show');
+  document.getElementById('btnAnalyze').disabled = true;
+
+  let mi=0;
+  loadInt = setInterval(()=>{
+    document.getElementById('loadTxt').textContent = LOAD_MSGS[mi%LOAD_MSGS.length]; mi++;
+  },1800);
+
+  try {
+    const base64 = frames[frameIdx].split(',')[1];
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({imageBase64:base64, mimeType:'image/jpeg', mode})
+    });
+
+    clearInterval(loadInt);
+    document.getElementById('loading').classList.remove('show');
+
+    if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showResult(data.result);
+
+  } catch(err){
+    clearInterval(loadInt);
+    document.getElementById('loading').classList.remove('show');
+    document.getElementById('btnAnalyze').disabled = false;
+    const eb = document.getElementById('errBox');
+    eb.innerHTML = `⚠️ ${err.message || '분석 중 오류가 발생했어요.'}<br><small style="opacity:.65;font-size:11px">Apps Script URL을 다시 확인해보세요 (← 뒤로 버튼 → 설정)</small>`;
+    eb.classList.add('show');
+  }
+}
+
+function showResult(r){
+  const score = Math.max(0,Math.min(100,r.score||0));
+
+  // score circle animation
+  document.getElementById('scoreNum').textContent = score;
+  const circ = 2*Math.PI*35; // 219.9
+  const offset = circ * (1 - score/100);
+  const fill = document.getElementById('scoreFill');
+  fill.style.strokeDasharray = circ;
+  fill.style.strokeDashoffset = circ; // start
+  setTimeout(()=>{ fill.style.strokeDashoffset = offset; }, 50);
+
+  // text
+  document.getElementById('rOverall').textContent = r.overall||'분석 완료!';
+  document.getElementById('rMode').textContent = (mode==='batting'?'🏏 타격':'⚾ 투구') + ' 자세 분석 결과';
+
+  document.getElementById('rGood').innerHTML =
+    (r.good||[]).map(g=>`<div class="rp-item"><span class="rp-ico">✅</span><span>${g}</span></div>`).join('');
+  document.getElementById('rImprove').innerHTML =
+    (r.improve||[]).map(i=>`<div class="rp-item"><span class="rp-ico">💡</span><span>${i}</span></div>`).join('');
+  document.getElementById('rTip').textContent = r.tip||'';
+
+  document.getElementById('result').classList.add('show');
+  document.getElementById('btnAnalyze').disabled = false;
+
+  setTimeout(()=>{
+    document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
+  },150);
+}
+</script>
+</body>
+</html>
